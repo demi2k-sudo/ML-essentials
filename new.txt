@@ -1,1 +1,131 @@
+pip install pyspark
+import numpy as np
+import pandas as pd
+from pyspark.sql import SparkSession
+spark = SparkSession.builder.appName("pandas to spark").getOrCreate()
+df = pd.read_csv("Acoustic_Extinguisher_Fire_Dataset.csv")
+df["FUEL"] = df["FUEL"].astype("category")
+df["FUEL"] = df["FUEL"].cat.codes
+x = df.iloc[:,:-1]
+y = df.iloc[:,-1]
+df.head()
+cl = df.columns[:-1]
+cl = list(cl)
+from sklearn.preprocessing import StandardScaler
+ss = StandardScaler()
+df[cl] = ss.fit_transform(df[cl])
+df1 = spark.createDataFrame(df)
+df1.head()
+from pyspark.ml.feature import VectorAssembler
+  
+vec_assembler = VectorAssembler(inputCols = cl,
+                                outputCol='features')
+final_data = vec_assembler.transform(df1)
+final_data.select(['features','STATUS']).show(5)
+train_data, test_data = final_data.randomSplit([0.8, 0.2], seed = 42)
+from pyspark.ml.classification import LinearSVC
+svc = LinearSVC(labelCol='STATUS', maxIter=50)
+model = svc.fit(train_data)
+
+
+===========================================================
+import random
+import matplotlib.pyplot as plt
+
+# Parameters
+population_size = 5
+chromosome_length = 10
+mutation_rate = 0.1
+generations = 100
+gen= []
+fit = []
+
+def initialize_population(pop_size, chromosome_length):
+    return [''.join(random.choice('01') for _ in range(chromosome_length)) for _ in range(pop_size)]
+
+def binary_to_decimal(binary_str):
+    return int(binary_str, 2)
+
+def calculate_fitness(chromosome):
+    x = binary_to_decimal(chromosome)
+    # Use a more complex fitness function - the sum of squares
+    return x**2
+
+def select_parents(population):
+    return random.choices(population, k=2, weights=[1.0 / (calculate_fitness(chromosome) + 1) for chromosome in population])
+
+def crossover(parent1, parent2):
+    crossover_point = random.randint(1, len(parent1) - 1)
+    child1 = parent1[:crossover_point] + parent2[crossover_point:]
+    child2 = parent2[:crossover_point] + parent1[crossover_point:]
+    return child1, child2
+
+def mutate(chromosome):
+    mutated_chromosome = list(chromosome)
+    for i in range(len(chromosome)):
+        if random.random() < mutation_rate:
+            mutated_chromosome[i] = '0' if chromosome[i] == '1' else '1'
+    return ''.join(mutated_chromosome)
+
+def evolve_population(population):
+    new_population = []
+    while len(new_population) < len(population):
+        parent1, parent2 = select_parents(population)
+        child1, child2 = crossover(parent1, parent2)
+        child1 = mutate(child1)
+        child2 = mutate(child2)
+        new_population.extend([child1, child2])
+    return new_population
+
+def main():
+    population = initialize_population(population_size, chromosome_length)
+    
+    for generation in range(generations):
+        population = sorted(population, key=lambda chromosome: calculate_fitness(chromosome))
+        best_chromosome = population[0]
+        fitness = calculate_fitness(best_chromosome)
+        x = binary_to_decimal(best_chromosome)
+        
+        print(f"Generation {generation}: Best Chromosome: {best_chromosome} (Fitness: {fitness}), x: {x}")
+        gen.append(generation)
+        fit.append(fitness)
+        
+        population = evolve_population(population)
+    plt.plot(gen,fit)
+    plt.show()
+
+if __name__ == "__main__":
+    main()
+
+=================================================================
+import gym
+from stable_baselines3 import PPO
+from stable_baselines3.common.vec_env import DummyVecEnv
+from stable_baselines3.common.evaluation import evaluate_policy
+import os
+env = gym.make('CartPole-v0', render_mode="human")
+model = PPO('MlpPolicy',env,verbose=1)
+model.learn(total_timesteps=2400)
+evaluate_policy(model, env, n_eval_episodes = 100, render=False)
+import time
+episodes = 5
+for episode in range(1,episodes+1):
+    obs = env.reset()[0]
+    done = False
+    score = 0
+    
+    while not done:
+        env.render()
+        action,_ = model.predict(obs)
+        obs, reward, terminated, truncated, info = env.step(action)
+        done = terminated or truncated
+        # print('{}  {}  {}  {}  {}'.format(n_step,reward,done,info,temp))
+        score+=reward
+    print('Episode:{} Score:{}'.format(episode, score))
+
+env.close()
+PPO_Path = os.path.join('Training','Saved Models','PPO_model_cartpole')
+model.save(PPO_Path)
+
+
 
